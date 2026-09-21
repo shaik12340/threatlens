@@ -1,0 +1,29 @@
+from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy.sql import func
+from app.core.database import Base
+
+class Indicator(Base):
+    __tablename__ = "indicators"
+
+    id = Column(Integer, primary_key=True, index=True)
+    value = Column(String, nullable=False, index=True)
+    type = Column(String, nullable=False)
+    severity_score = Column(Integer, default=0)
+    confidence = Column(Integer, default=0)
+    status = Column(String, default="active")
+
+    # Phase 8 - IOC Enrichment
+    enrichment_status = Column(String, default="pending")
+    reputation = Column(String, default="unknown")
+    country = Column(String, nullable=True)
+    asn = Column(String, nullable=True)
+    malware_family = Column(String, nullable=True)
+    last_seen = Column(DateTime(timezone=True), nullable=True)
+    detection_score = Column(Integer, default=0)
+    detection_reasons = Column(String, nullable=True)
+
+    # Phase 10.5 - Risk Aggregation
+    correlation_score = Column(Integer, default=0)
+    risk_score = Column(Integer, default=0)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

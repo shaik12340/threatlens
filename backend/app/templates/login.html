@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ThreatLens — Login</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#08111f;
+    color:#fff;
+    font-family:Arial,Helvetica,sans-serif;
+}
+.login-box{
+    width:390px;
+    background:#10203a;
+    border:1px solid #21466f;
+    border-radius:16px;
+    padding:32px;
+    box-shadow:0 20px 60px rgba(0,0,0,.35);
+}
+.logo{
+    text-align:center;
+    font-size:30px;
+    font-weight:bold;
+    color:#38bdf8;
+    margin-bottom:8px;
+}
+.logo span{color:#fff}
+.subtitle{
+    text-align:center;
+    color:#94a3b8;
+    font-size:14px;
+    margin-bottom:28px;
+}
+label{
+    display:block;
+    margin:14px 0 7px;
+    color:#cbd5e1;
+    font-weight:bold;
+    font-size:14px;
+}
+input{
+    width:100%;
+    padding:12px;
+    background:#0b1527;
+    border:1px solid #29496f;
+    color:#fff;
+    border-radius:8px;
+    outline:none;
+}
+input:focus{border-color:#38bdf8}
+button{
+    width:100%;
+    margin-top:22px;
+    padding:12px;
+    background:#2563eb;
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    font-weight:bold;
+    cursor:pointer;
+}
+button:hover{background:#3b82f6}
+#error{
+    display:none;
+    margin-top:15px;
+    padding:10px;
+    border-radius:8px;
+    background:#7f1d1d;
+    color:#fecaca;
+    font-size:13px;
+}
+.footer{
+    text-align:center;
+    color:#64748b;
+    font-size:12px;
+    margin-top:22px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="login-box">
+    <div class="logo">Threat<span>Lens</span></div>
+    <div class="subtitle">Cyber Threat Intelligence Platform</div>
+
+    <form id="loginForm">
+        <label>Username</label>
+        <input id="username" type="text" autocomplete="username" required>
+
+        <label>Password</label>
+        <input id="password" type="password" autocomplete="current-password" required>
+
+        <button type="submit">🔐 Sign In</button>
+
+        <div id="error"></div>
+    </form>
+
+    <div class="footer">ThreatLens v1.0 • Secure SOC Access</div>
+</div>
+
+<script>
+document.getElementById("loginForm").addEventListener("submit", async function(e){
+    e.preventDefault();
+
+    const error = document.getElementById("error");
+    error.style.display = "none";
+
+    try {
+        const response = await fetch("/login", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({
+                username: document.getElementById("username").value,
+                password: document.getElementById("password").value
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            window.location.href = "/";
+            return;
+        }
+
+        error.textContent = data.detail || "Invalid username or password";
+        error.style.display = "block";
+
+    } catch (err) {
+        error.textContent = "Unable to connect to ThreatLens server";
+        error.style.display = "block";
+    }
+});
+</script>
+
+</body>
+</html>

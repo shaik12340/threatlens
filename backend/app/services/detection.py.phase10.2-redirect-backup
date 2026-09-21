@@ -1,0 +1,110 @@
+from urllib.parse import urlparse
+import re
+
+SUSPICIOUS_EXTENSIONS = [
+    ".hta", ".js", ".vbs", ".exe",
+    ".bat", ".scr", ".ps1"
+]
+
+PHISHING_KEYWORDS = [
+    "login", "verify", "update",
+    "secure", "wallet", "bank",
+    "signin", "password"
+]
+
+SUSPICIOUS_TLDS = [
+    ".zip", ".top", ".xyz", ".click",
+    ".tk", ".ml", ".ga", ".cf", ".gq"
+]
+
+
+def detect_url(url: str):
+    score = 0
+    reasons = []
+
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    path = (parsed.path or "").lower()
+    full = url.lower()
+
+    # 1. Suspicious extension
+    for ext in SUSPICIOUS_EXTENSIONS:
+        if path.endswith(ext):
+            score += 20
+            reasons.append(f"Suspicious Extension ({ext})")
+            break
+
+    # 2. Raw IP address
+    if re.fullmatch(r"\d+\.\d+\.\d+\.\d+", host):
+        score += 15
+        reasons.append("Raw IP Address")
+
+    # 3. Phishing keywords
+    found = []
+    for word in PHISHING_KEYWORDS:
+        if word in full:
+            found.append(word)
+
+    if found:
+        score += 10
+        reasons.append("Phishing Keywords: " + ", ".join(found))
+
+    # 4. Obfuscated URL
+    if "%" in url or "@" in url:
+        score += 10
+        reasons.append("Obfuscated URL")
+
+    # 5. Redirect detection
+    redirect_params = [
+        "url=", "redirect=", "redirect_url=",
+        "return=", "returnurl=", "next=",
+        "continue=", "dest=", "destination="
+    ]
+
+    found_redirect = []
+
+    for param in redirect_params:
+        if param in full:
+            found_redirect.append(param.rstrip("="))
+
+    if found_redirect:
+        score += 10
+        reasons.append(
+            "Redirect Parameter: " + ", ".join(found_redirect)
+        )
+
+    # 6. Domain analysis
+    if host and not re.fullmatch(r"\d+\.\d+\.\d+\.\d+", host):
+
+        # Punycode / internationalized domain
+        if "xn--" in host:
+            score += 15
+            reasons.append("Punycode Domain")
+
+        # Excessively long hostname
+        if len(host) > 50:
+            score += 10
+            reasons.append("Long Domain Name")
+
+        # Too many subdomains
+        parts = host.split(".")
+        if len(parts) >= 5:
+            score += 10
+            reasons.append("Excessive Subdomains")
+
+        # Suspicious TLD
+        for tld in SUSPICIOUS_TLDS:
+            if host.endswith(tld):
+                score += 10
+                reasons.append(f"Suspicious TLD ({tld})")
+                break
+
+        # Multiple hyphens in hostname
+        if host.count("-") >= 3:
+            score += 10
+            reasons.append("Multiple Hyphens in Domain")
+
+    return {
+        "score": min(score, 100),
+        "reasons": reasons
+    }

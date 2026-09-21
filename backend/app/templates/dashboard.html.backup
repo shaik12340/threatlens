@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>ThreatLens SOC Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;background:#08111f;color:#fff}
+.layout{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+.sidebar{background:#0d1728;padding:22px;border-right:1px solid #1f3553}
+.logo{font-size:28px;font-weight:bold;color:#38bdf8;margin-bottom:25px}
+.logo span{color:#fff}
+.menu a{display:block;color:#cbd5e1;text-decoration:none;padding:12px;border-radius:10px;margin-bottom:8px}
+.menu a:hover,.active{background:#14396a;color:#fff}
+.ver{margin-top:35px;background:#10203a;padding:12px;border-radius:10px;color:#94a3b8;font-size:13px}
+.main{padding:24px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.status{background:#065f46;color:#bbf7d0;padding:8px 14px;border-radius:20px;font-size:13px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.card{background:#10203a;border:1px solid #21466f;border-radius:14px;padding:18px}
+.card small{color:#8ea8c8}
+.card h2{font-size:34px;margin-top:8px}
+.panel{background:#10203a;border:1px solid #21466f;border-radius:14px;padding:18px;margin-top:20px}
+.legend{display:flex;gap:15px;font-size:12px;margin-bottom:8px}
+.trend{height:180px;background:#0b1527;border-radius:10px;padding:10px}
+label{display:block;margin-top:10px;margin-bottom:5px;color:#cbd5e1;font-weight:bold}
+input,select{width:100%;padding:11px;background:#0b1527;border:1px solid #29496f;color:#fff;border-radius:8px}
+.btn{width:100%;margin-top:15px;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-weight:bold}
+.row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.search{display:flex;gap:10px;margin-bottom:12px}
+.search input{flex:1}
+table{width:100%;border-collapse:collapse}
+th,td{padding:12px;border-bottom:1px solid #234161;text-align:left;font-size:14px}
+th{color:#8ea8c8}
+.badge{padding:5px 10px;border-radius:18px;font-size:12px}
+.c{background:#7f1d1d}.h{background:#78350f}.m{background:#1e3a8a}.l{background:#166534}
+.view{color:#38bdf8;text-decoration:none}
+.delall{background:#dc2626;color:#fff;border:none;padding:10px 14px;border-radius:8px;font-weight:bold}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.sidebar{display:none}.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+{% set ns = namespace(critical=0,high=0) %}
+{% for i in indicators %}
+{% if i.severity_score>=80 %}{% set ns.critical=ns.critical+1 %}
+{% elif i.severity_score>=60 %}{% set ns.high=ns.high+1 %}
+{% endif %}
+{% endfor %}
+
+<div class="layout">
+
+<div class="sidebar">
+<div class="logo">Threat<span>Lens</span></div>
+
+<div class="menu">
+<a class="active" href="#dashboard">🏠 Dashboard</a>
+<a href="#feed">📡 IOCs</a>
+<a href="#reports">📑 Reports</a>
+<a href="#analytics">📊 Analytics</a>
+<a href="#settings">⚙ Settings</a>
+</div>
+
+<div class="ver">
+<b style="color:#38bdf8">ThreatLens v1.0</b><br>
+Cyber Threat Intelligence Platform
+</div>
+</div>
+
+<div class="main">
+
+<div id="dashboard" class="top">
+<div>
+<h1 style="color:#38bdf8">SOC Dashboard</h1>
+<div style="color:#94a3b8;font-size:14px">Real-time Cyber Threat Intelligence</div>
+</div>
+<div class="status">● System Online</div>
+</div>
+
+<div class="cards">
+<div class="card">
+<small>Total IOCs</small>
+<h2 style="color:#38bdf8">{{ indicators|length }}</h2>
+<div style="color:#22c55e;font-size:13px">↑ Active database</div>
+</div>
+
+<div class="card">
+<small>Critical</small>
+<h2 style="color:#fb7185">{{ ns.critical }}</h2>
+<div style="color:#fb7185;font-size:13px">High priority</div>
+</div>
+
+<div class="card">
+<small>High Risk</small>
+<h2 style="color:#f59e0b">{{ ns.high }}</h2>
+<div style="color:#f59e0b;font-size:13px">Requires review</div>
+</div>
+</div>
+
+
+<div class="panel">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+  <h2 style="margin:0;">📈 IOC Activity Trend</h2>
+  <div style="display:flex;gap:12px;font-size:12px;">
+    <span style="color:#ef4444;">● Critical</span>
+    <span style="color:#f59e0b;">● High</span>
+    <span style="color:#3b82f6;">● Medium</span>
+    <span style="color:#22c55e;">● Low</span>
+  </div>
+</div>
+
+
+
+{% set critical = namespace(v=0) %}
+{% set high = namespace(v=0) %}
+{% set medium = namespace(v=0) %}
+{% set low = namespace(v=0) %}
+
+{% for i in indicators %}
+    {% if i.severity_score >= 80 %}
+        {% set critical.v = critical.v + 1 %}
+    {% elif i.severity_score >= 60 %}
+        {% set high.v = high.v + 1 %}
+    {% elif i.severity_score >= 40 %}
+        {% set medium.v = medium.v + 1 %}
+    {% else %}
+        {% set low.v = low.v + 1 %}
+    {% endif %}
+{% endfor %}
+
+{% set maxv = [critical.v, high.v, medium.v, low.v]|max %}
+{% if maxv == 0 %}{% set maxv = 1 %}{% endif %}
+
+<svg viewBox="0 0 560 180" width="100%" style="background:#0b1527;border-radius:10px">
+
+<g stroke="#223552" stroke-width="1">
+<line x1="45" y1="15" x2="45" y2="145"/>
+<line x1="45" y1="145" x2="520" y2="145"/>
+<line x1="45" y1="105" x2="520" y2="105" stroke-dasharray="4 4"/>
+<line x1="45" y1="65" x2="520" y2="65" stroke-dasharray="4 4"/>
+</g>
+
+{% set maxv=[critical.v,high.v,medium.v,low.v]|max %}
+{% if maxv==0 %}{% set maxv=1 %}{% endif %}
+
+<rect x="70" y="{{145-(critical.v*100/maxv)}}" width="55" height="{{critical.v*100/maxv}}" rx="6" fill="#ef4444"/>
+<rect x="180" y="{{145-(high.v*100/maxv)}}" width="55" height="{{high.v*100/maxv}}" rx="6" fill="#f59e0b"/>
+<rect x="290" y="{{145-(medium.v*100/maxv)}}" width="55" height="{{medium.v*100/maxv}}" rx="6" fill="#3b82f6"/>
+<rect x="400" y="{{145-(low.v*100/maxv)}}" width="55" height="{{low.v*100/maxv}}" rx="6" fill="#22c55e"/>
+
+<g fill="#fff" font-size="12" font-weight="bold">
+<text x="92" y="{{135-(critical.v*100/maxv)}}">{{critical.v}}</text>
+<text x="202" y="{{135-(high.v*100/maxv)}}">{{high.v}}</text>
+<text x="312" y="{{135-(medium.v*100/maxv)}}">{{medium.v}}</text>
+<text x="422" y="{{135-(low.v*100/maxv)}}">{{low.v}}</text>
+</g>
+
+<g fill="#94a3b8" font-size="10">
+<text x="75" y="162">Critical</text>
+<text x="190" y="162">High</text>
+<text x="295" y="162">Medium</text>
+<text x="410" y="162">Low</text>
+</g>
+
+</svg>
+</div>
+
+
+<div class="panel">
+<h2>➕ Add Threat Indicator</h2>
+<form action="/add" method="post">
+
+<label>Indicator</label>
+<input name="value" required>
+
+<label>Type</label>
+<select name="type">
+<option value="ip">IP Address</option>
+<option value="domain">Domain</option>
+<option value="url">URL</option>
+<option value="hash">SHA256 Hash</option>
+</select>
+
+<label>Severity (0-100)</label>
+<input type="number" name="severity_score" value="90">
+
+<label>Confidence (0-100)</label>
+<input type="number" name="confidence" value="95">
+
+<button class="btn">Add IOC</button>
+</form>
+</div>
+
+<div id="feed" class="panel">
+
+<div class="row">
+<h2>📡 Live Threat Feed</h2>
+
+<form action="/delete-all" method="post" onsubmit="return confirm('⚠️ Are you sure you want to delete ALL indicators? This action cannot be undone.');">
+<button class="delall" type="submit">🗑 Delete All</button>
+</form>
+</div>
+
+<form class="search" method="get" action="/">
+<input type="text" name="q" value="{{ q }}" placeholder="Search IOC, IP, URL or Domain">
+<button class="btn" style="width:120px;margin:0">Search</button>
+</form>
+
+<table>
+<tr>
+<th>ID</th>
+<th>Indicator</th>
+<th>Type</th>
+<th>Severity</th>
+<th>View</th>
+</tr>
+
+{% for i in indicators %}
+<tr>
+<td>{{ i.id }}</td>
+<td style="max-width:320px;word-break:break-all">{{ i.value }}</td>
+<td>{{ i.type }}</td>
+<td>
+{% if i.severity_score>=80 %}
+<span class="badge c">Critical</span>
+{% elif i.severity_score>=60 %}
+<span class="badge h">High</span>
+{% elif i.severity_score>=40 %}
+<span class="badge m">Medium</span>
+{% else %}
+<span class="badge l">Low</span>
+{% endif %}
+</td>
+<td><a class="view" href="/ioc/{{ i.id }}">View</a></td>
+</tr>
+{% endfor %}
+</table>
+
+</div>
+
+<div id="reports" class="panel">
+<h2>📑 Reports</h2>
+<p style="color:#94a3b8;margin-bottom:10px">Download IOC investigation PDF reports.</p>
+<table>
+<tr><th>IOC</th><th>Action</th></tr>
+<tr><td>IOC #35</td><td><a class="view" href="/ioc/35/pdf">Download PDF</a></td></tr>
+<tr><td>IOC #34</td><td><a class="view" href="/ioc/34/pdf">Download PDF</a></td></tr>
+</table>
+</div>
+
+<div id="analytics" class="panel">
+<h2>📊 Analytics</h2>
+<div class="cards">
+<div class="card"><small>Total</small><h2>{{ indicators|length }}</h2></div>
+<div class="card"><small>Critical</small><h2>{{ ns.critical }}</h2></div>
+<div class="card"><small>High</small><h2>{{ ns.high }}</h2></div>
+</div>
+</div>
+
+<div id="settings" class="panel">
+<h2>⚙ Settings</h2>
+<table>
+<tr><td>Theme</td><td>Dark SOC</td></tr>
+<tr><td>Version</td><td>v1.0</td></tr>
+<tr><td>Developer</td><td>Shaik Riyan</td></tr>
+</table>
+</div>
+
+</div>
+</div>
+
+</body>
+</html>

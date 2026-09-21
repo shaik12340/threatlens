@@ -1,0 +1,109 @@
+from urllib.parse import urlparse
+import socket
+import httpx
+
+
+def enrich_indicator(value: str, indicator_type: str) -> dict:
+    """
+    Passive IOC enrichment.
+
+    Performs:
+    - DNS resolution
+    - Reverse DNS for IPs
+    - IP geolocation / ASN lookup using ipwho.is
+
+    The IOC itself is never contacted.
+    """
+
+    result = {
+        "enrichment_status": "completed",
+        "reputation": "unknown",
+        "country": None,
+        "asn": None,
+        "malware_family": None,
+        "last_seen": None,
+    }
+
+    try:
+        value = str(value).strip()
+        indicator_type = str(indicator_type).lower().strip()
+
+        hostname = None
+
+        if indicator_type == "url":
+            parsed = urlparse(value)
+            hostname = parsed.hostname
+
+        elif indicator_type == "domain":
+            hostname = value
+
+        elif indicator_type == "ip":
+            hostname = value
+
+        if not hostname:
+            result["enrichment_status"] = "failed"
+            return result
+
+        # -------------------------------------------------
+        # Resolve hostname to IP
+        # -------------------------------------------------
+        resolved_ip = None
+
+        try:
+            resolved_ip = socket.gethostbyname(hostname)
+        except (socket.gaierror, OSError):
+            pass
+
+        # For direct IP indicators, use the original value.
+        if indicator_type == "ip":
+            resolved_ip = hostname
+
+        # -------------------------------------------------
+        # IP Intelligence
+        # -------------------------------------------------
+        if resolved_ip:
+            try:
+                response = httpx.get(
+                    f"https://ipwho.is/{resolved_ip}",
+                    timeout=8.0
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+
+                    if data.get("success"):
+                        result["country"] = data.get("country")
+
+                        connection = data.get("connection") or {}
+
+                        asn = connection.get("asn")
+                        org = connection.get("org")
+
+                        if asn:
+                            if org:
+                                result["asn"] = f"AS{asn} - {org}"
+                            else:
+                                result["asn"] = f"AS{asn}"
+
+            except (httpx.HTTPError, ValueError, OSError):
+                pass
+
+        # -------------------------------------------------
+        # Reverse DNS
+        # -------------------------------------------------
+        if indicator_type == "ip":
+            try:
+                reverse_name = socket.gethostbyaddr(hostname)[0]
+
+                result["malware_family"] = (
+                    f"Reverse DNS: {reverse_name}"
+                )
+
+            except (socket.herror, socket.gaierror, OSError):
+                pass
+
+        return result
+
+    except Exception:
+        result["enrichment_status"] = "failed"
+        return result

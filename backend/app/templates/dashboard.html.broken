@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>ThreatLens</title>
+<style>
+body{font-family:Arial;background:#0b1220;color:#fff;margin:0;padding:25px}
+h1{color:#38bdf8}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.box{background:#172033;padding:20px;border-radius:12px}
+label{display:block;color:#cbd5e1;font-weight:bold;margin-top:10px;margin-bottom:5px}
+input,select{width:100%;padding:10px;background:#243248;color:#fff;border:1px solid #334155;border-radius:8px}
+.add{width:100%;margin-top:15px;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-weight:bold}
+.del{background:#dc2626;color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer}
+table{width:100%;border-collapse:collapse;margin-top:15px}
+th,td{padding:10px;border-bottom:1px solid #334155;text-align:left}
+.badge{padding:4px 8px;border-radius:20px;font-size:12px}
+.critical{background:#7f1d1d}.high{background:#78350f}.medium{background:#1e3a8a}.low{background:#14532d}
+</style>
+</head>
+<body>
+
+<h1>🛡 ThreatLens CTI Dashboard</h1>
+
+<div class="grid">
+
+<div class="box">
+<h2>Add Threat Indicator</h2>
+<form action="/add" method="post">
+
+<label>Indicator</label>
+<input type="text" name="value" placeholder="185.220.101.4" required>
+
+<label>Type</label>
+<select name="type">
+<option value="ip">IP Address</option>
+<option value="domain">Domain</option>
+<option value="url">URL</option>
+<option value="hash">SHA256 Hash</option>
+</select>
+
+<label>Severity (0-100)</label>
+<input type="number" name="severity_score" value="90">
+
+<label>Confidence (0-100)</label>
+<input type="number" name="confidence" value="95">
+
+<button type="submit" class="add">➕ Add IOC</button>
+</form>
+<form action="/import/urlhaus" method="post" style="margin-top:12px">
+<button type="submit" class="add" style="background:#16a34a">
+🌐 Import URLhaus Feed
+</button>
+</form>
+
+</div>
+
+<div class="box">
+<h2>Statistics</h2>
+<h1>{{ indicators|length }}</h1>
+<p>Total Indicators</p>
+</div>
+
+</div>
+
+<div class="box" style="margin-top:20px">
+<h2>📡 Live Threat Feed</h2>
+<form method="get" action="/" style="margin:15px 0;display:flex;gap:10px">
+<input type="text" name="q" value="{{ q }}" placeholder="Search IP, Domain, URL..." style="flex:1">
+<button type="submit" class="add" style="width:120px">Search</button>
+</form>
+
+<table>
+<tr>
+<th>ID</th>
+<th>Indicator</th>
+<th>Type</th>
+<th>Severity</th>
+<th>Action</th><th>View</th>
+</tr>
+
+{% for i in indicators %}
+<tr>
+<td>{{ i.id }}</td>
+<td>{{ i.value }}</td>
+<td>{{ i.type }}</td>
+
+<td>
+{% if i.severity_score >= 80 %}
+<span class="badge critical">Critical ({{ i.severity_score }})</span>
+{% elif i.severity_score >= 60 %}
+<span class="badge high">High ({{ i.severity_score }})</span>
+{% elif i.severity_score >= 40 %}
+<span class="badge medium">Medium ({{ i.severity_score }})</span>
+{% else %}
+<span class="badge low">Low ({{ i.severity_score }})</span>
+{% endif %}
+</td>
+
+<td>
+<form action="/delete/{{ i.id }}" method="post">
+<button type="submit" class="del">🗑 Delete</button>
+</form></td><td><a href='/ioc/{{ i.id }}' style='color:#38bdf8;text-decoration:none'>View</a></td></tr>
+{% endfor %}
+
+</table>
+</div>
+
+</body>
+</html>

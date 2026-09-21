@@ -1,0 +1,54 @@
+from urllib.parse import urlparse
+import re
+
+SUSPICIOUS_EXTENSIONS = [
+    ".hta", ".js", ".vbs", ".exe",
+    ".bat", ".scr", ".ps1"
+]
+
+PHISHING_KEYWORDS = [
+    "login", "verify", "update",
+    "secure", "wallet", "bank",
+    "signin", "password"
+]
+
+def detect_url(url: str):
+    score = 0
+    reasons = []
+
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    path = (parsed.path or "").lower()
+    full = url.lower()
+
+    # 1. Suspicious extension
+    for ext in SUSPICIOUS_EXTENSIONS:
+        if path.endswith(ext):
+            score += 20
+            reasons.append(f"Suspicious Extension ({ext})")
+            break
+
+    # 2. Raw IP address
+    if re.fullmatch(r"\d+\.\d+\.\d+\.\d+", host):
+        score += 15
+        reasons.append("Raw IP Address")
+
+    # 3. Phishing keywords
+    found = []
+    for word in PHISHING_KEYWORDS:
+        if word in full:
+            found.append(word)
+
+    if found:
+        score += 10
+        reasons.append("Phishing Keywords: " + ", ".join(found))
+
+    # 4. Obfuscated URL
+    if "%" in url or "@" in url:
+        score += 10
+        reasons.append("Obfuscated URL")
+
+    return {
+        "score": min(score, 100),
+        "reasons": reasons
+    }

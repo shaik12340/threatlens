@@ -1,0 +1,230 @@
+from fastapi import FastAPI, Depends, Request, Form
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
+from sqlalchemy import or_
+import httpx, csv
+from io import StringIO
+
+from app.core.database import Base, engine, get_db
+from app.models.indicator import Indicator
+
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="ThreatLens CTI Dashboard")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+templates = Jinja2Templates(directory="app/templates")
+
+@app.get("/")
+def dashboard(request: Request, q: str = "", db: Session = Depends(get_db)):
+    query = db.query(Indicator)
+    if q:
+        query = query.filter(
+            or_(
+                Indicator.value.ilike(f"%{q}%"),
+                Indicator.type.ilike(f"%{q}%")
+            )
+        )
+    indicators = query.order_by(Indicator.id.desc()).all()
+    return templates.TemplateResponse(
+        request,
+        "dashboard.html",
+        {"request": request, "indicators": indicators, "q": q}
+    )
+
+@app.post("/add")
+def add_indicator(
+    value: str = Form(...),
+    type: str = Form(...),
+    severity_score: int = Form(...),
+    confidence: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    db.add(Indicator(
+        value=value,
+        type=type,
+        severity_score=severity_score,
+        confidence=confidence
+    ))
+    db.commit()
+    return RedirectResponse("/", status_code=303)
+
+@app.post("/delete/{ioc_id}")
+def delete_indicator(ioc_id: int, db: Session = Depends(get_db)):
+    ioc = db.query(Indicator).filter(Indicator.id == ioc_id).first()
+    if ioc:
+        db.delete(ioc)
+        db.commit()
+    return RedirectResponse("/", status_code=303)
+
+@app.post("/import/urlhaus")
+def import_urlhaus(db: Session = Depends(get_db)):
+    try:
+        r = httpx.get(
+            "https://urlhaus.abuse.ch/downloads/csv_recent/",
+            timeout=30
+        )
+        lines = [x for x in r.text.splitlines() if not x.startswith("#")]
+        reader = csv.reader(StringIO("\n".join(lines)))
+
+        added = 0
+        for row in reader:
+            if len(row) < 3:
+                continue
+
+            url = row[2].strip()
+
+            if db.query(Indicator).filter(Indicator.value == url).first():
+                continue
+
+            db.add(Indicator(
+                value=url,
+                type="url",
+                severity_score=85,
+                confidence=90,
+                status="active"
+            ))
+            added += 1
+
+            if added >= 10:
+                break
+
+        db.commit()
+        print(f"Imported {added} URLs")
+
+    except Exception as e:
+        print("URLHAUS ERROR:", e)
+
+    return RedirectResponse("/", status_code=303)
+
+@app.get("/ioc/{ioc_id}")
+def ioc_details(ioc_id: int, request: Request, db: Session = Depends(get_db)):
+    ioc = db.query(Indicator).filter(Indicator.id == ioc_id).first()
+    return templates.TemplateResponse(
+        request,
+        "ioc_details.html",
+        {"request": request, "ioc": ioc}
+    )
+
+from fastapi.responses import FileResponse
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+
+@app.get("/ioc/{ioc_id}/pdf")
+def export_pdf(ioc_id: int, db: Session = Depends(get_db)):
+    from fastapi.responses import FileResponse
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.colors import HexColor, white
+    from reportlab.lib.units import inch
+    import os
+
+    ioc = db.query(Indicator).filter(Indicator.id == ioc_id).first()
+
+    pdf_path = f"/tmp/Threat_Report_{ioc.id}.pdf"
+    c = canvas.Canvas(pdf_path, pagesize=(8.27*inch,11.69*inch))
+    w,h = 8.27*inch,11.69*inch
+
+    # Background
+    c.setFillColor(HexColor("#F4F7FC"))
+    c.rect(0,0,w,h,fill=1,stroke=0)
+
+    # Header
+    c.setFillColor(HexColor("#0F4C81"))
+    c.rect(0,h-90,w,90,fill=1,stroke=0)
+    c.setFillColor(white)
+    c.setFont("Helvetica-Bold",24)
+    c.drawString(40,h-40,"ThreatLens CTI Report")
+    c.setFont("Helvetica",11)
+    c.drawString(40,h-58,"Cyber Threat Intelligence • Security Operations Center")
+
+    # Executive Summary
+    y=h-120
+    c.setFillColor(HexColor("#111827"))
+    c.setFont("Helvetica-Bold",16)
+    c.drawString(40,y,"Executive Summary")
+    y-=18
+    c.setFont("Helvetica",10)
+    c.drawString(40,y,"This IOC was imported from the URLhaus threat feed and classified as high risk.")
+
+    # IOC Details
+    y-=35
+    c.setFont("Helvetica-Bold",15)
+    c.drawString(40,y,"IOC Details")
+    y-=15
+
+    rows=[
+        ("IOC ID",str(ioc.id)),
+        ("Indicator",ioc.value[:70]),
+        ("Type",ioc.type.upper()),
+        ("Severity",f"{ioc.severity_score}/100"),
+        ("Confidence",f"{ioc.confidence}%"),
+        ("Status",ioc.status.upper()),
+        ("Source","URLhaus Threat Feed")
+    ]
+
+    for k,v in rows:
+        c.setFillColor(HexColor("#DBEAFE"))
+        c.roundRect(35,y-18,540,22,6,fill=1,stroke=0)
+        c.setFillColor(HexColor("#1D4ED8"))
+        c.setFont("Helvetica-Bold",10)
+        c.drawString(45,y-5,k)
+        c.setFillColor(HexColor("#111827"))
+        c.setFont("Helvetica",10)
+        c.drawRightString(565,y-5,v)
+        y-=28
+
+    # MITRE Box
+    y-=10
+    c.setFillColor(HexColor("#FDE68A"))
+    c.roundRect(35,y-70,540,65,10,fill=1,stroke=0)
+    c.setFillColor(HexColor("#92400E"))
+    c.setFont("Helvetica-Bold",13)
+    c.drawString(50,y-20,"MITRE ATT&CK Mapping")
+
+    if ".hta" in ioc.value.lower():
+        mitre="T1218.005 – Mshta"
+    elif ".js" in ioc.value.lower():
+        mitre="T1059.007 – JavaScript"
+    elif ".sh" in ioc.value.lower():
+        mitre="T1059.004 – Unix Shell"
+    elif ioc.type=="ip":
+        mitre="T1071 – Application Layer Protocol"
+    else:
+        mitre="T1566 – Phishing"
+
+    c.setFont("Helvetica-Bold",11)
+    c.drawString(50,y-38,mitre)
+    c.setFont("Helvetica",9)
+    c.drawString(50,y-52,"Adversary technique identified from IOC characteristics.")
+
+    # Recommendations
+    y-=95
+    c.setFillColor(HexColor("#10B981"))
+    c.roundRect(35,y-120,540,115,10,fill=1,stroke=0)
+    c.setFillColor(white)
+    c.setFont("Helvetica-Bold",14)
+    c.drawString(50,y-20,"Analyst Recommendations")
+
+    recs=[
+        "Block IOC on Firewall & Web Proxy",
+        "Add IOC to SIEM Threat Intelligence",
+        "Monitor DNS & HTTP outbound traffic",
+        "Perform Endpoint Malware Investigation",
+        "Continue Monitoring for Related Activity"
+    ]
+    yy=y-38
+    c.setFont("Helvetica",10)
+    for r in recs:
+        c.drawString(55,yy,"• "+r)
+        yy-=16
+
+    # Footer
+    c.setFillColor(HexColor("#1F2937"))
+    c.rect(0,0,w,40,fill=1,stroke=0)
+    c.setFillColor(white)
+    c.setFont("Helvetica",9)
+    c.drawString(40,15,"Generated by ThreatLens CTI Dashboard | Version 2.0")
+
+    c.save()
+    return FileResponse(pdf_path, media_type="application/pdf", filename=f"Threat_Report_{ioc.id}.pdf")

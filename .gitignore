@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+backend/venv/
+
+# Environment
+backend/.env
+
+# Temporary files
+*.log
+*.sqlite3
+*.db
+
+# OS
+.DS_Store

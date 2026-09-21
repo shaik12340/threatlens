@@ -1,0 +1,65 @@
+from urllib.parse import urlparse
+import socket
+
+
+def enrich_indicator(value: str, indicator_type: str) -> dict:
+    """
+    Perform safe, passive IOC enrichment.
+
+    No connection is made to the IOC itself.
+    Only hostname parsing and DNS/reverse-DNS lookups are performed.
+    """
+
+    result = {
+        "enrichment_status": "completed",
+        "reputation": "unknown",
+        "country": None,
+        "asn": None,
+        "malware_family": None,
+        "last_seen": None,
+    }
+
+    try:
+        value = str(value).strip()
+        indicator_type = str(indicator_type).lower().strip()
+
+        hostname = None
+
+        if indicator_type == "url":
+            parsed = urlparse(value)
+            hostname = parsed.hostname
+
+        elif indicator_type == "domain":
+            hostname = value
+
+        elif indicator_type == "ip":
+            hostname = value
+
+        if not hostname:
+            result["enrichment_status"] = "failed"
+            return result
+
+        # Passive DNS resolution only.
+        try:
+            resolved_ip = socket.gethostbyname(hostname)
+            result["reputation"] = "unknown"
+        except (socket.gaierror, OSError):
+            resolved_ip = None
+
+        # Reverse DNS for IP indicators.
+        if indicator_type == "ip":
+            try:
+                reverse_name = socket.gethostbyaddr(hostname)[0]
+                result["country"] = None
+                result["asn"] = None
+                result["malware_family"] = (
+                    f"Reverse DNS: {reverse_name}"
+                )
+            except (socket.herror, socket.gaierror, OSError):
+                pass
+
+        return result
+
+    except Exception:
+        result["enrichment_status"] = "failed"
+        return result
