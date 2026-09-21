@@ -340,26 +340,6 @@ def ioc_details(ioc_id: int, request: Request, db: Session = Depends(get_db)):
         {"ioc_id": ioc_id}
     ).mappings().all()
 
-    actions = db.execute(
-        text("""
-            SELECT action, analyst, created_at
-            FROM investigation_actions
-            WHERE ioc_id = :ioc_id
-            ORDER BY id DESC
-        """),
-        {"ioc_id": ioc_id}
-    ).mappings().all()
-
-    tags = db.execute(
-        text("""
-            SELECT tag, added_by, created_at
-            FROM investigation_tags
-            WHERE ioc_id = :ioc_id
-            ORDER BY id DESC
-        """),
-        {"ioc_id": ioc_id}
-    ).mappings().all()
-
     return templates.TemplateResponse(
         request,
         "ioc_details.html",
@@ -367,9 +347,7 @@ def ioc_details(ioc_id: int, request: Request, db: Session = Depends(get_db)):
             "request": request,
             "ioc": ioc,
             "investigation": investigation,
-            "notes": notes,
-            "actions": actions,
-            "tags": tags
+            "notes": notes
         }
     )
 
